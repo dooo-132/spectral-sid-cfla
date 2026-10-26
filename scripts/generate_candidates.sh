@@ -33,11 +33,13 @@ Usage: bash scripts/generate_candidates.sh --dataset NAME --k K [options]
   --codebook-size C  default 256
   --device D         cuda (default) | cpu
   --seed S           default 2025
+  --num-workers N    DataLoader workers (default 4; use 0 on restricted hosts)
+  --allow-low-decode allow decode ratio < 0.90 (synthetic smoke / untrained ckpt only)
   --dry-run          print the underlying command without running it
 USAGE
 }
 DATASET=""; K=""; AFFINITY="nonneg_pearson"; CKPT=""; CODE=""; OUTP=""
-SPLIT="test"; BEAM=30; INFER=96; MAXLEN=20; CODEBOOK=256; DEVICE="cuda"; SEED=2025; DRY=0
+SPLIT="test"; BEAM=30; INFER=96; MAXLEN=20; CODEBOOK=256; DEVICE="cuda"; SEED=2025; DRY=0; NUM_WORKERS=""; ALLOW_LOW=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dataset) DATASET="${2:?}"; shift 2 ;;
@@ -53,6 +55,8 @@ while [ $# -gt 0 ]; do
     --codebook-size) CODEBOOK="${2:?}"; shift 2 ;;
     --device) DEVICE="${2:?}"; shift 2 ;;
     --seed) SEED="${2:?}"; shift 2 ;;
+    --num-workers) NUM_WORKERS="${2:?}"; shift 2 ;;
+    --allow-low-decode) ALLOW_LOW=1; shift ;;
     --dry-run) DRY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "error: unknown argument $1" >&2; usage >&2; exit 2 ;;
@@ -69,6 +73,7 @@ CMD=("$PY" -m src.tiger.dump_beams --dataset_path "$ART/data/$DATASET" \
      --code_path "$CODE" --ckpt_path "$CKPT" --output_path "$OUTP" \
      --split "$SPLIT" --sid_len "$L" --codebook_size "$CODEBOOK" \
      --beam_size "$BEAM" --infer_size "$INFER" --max_len "$MAXLEN" \
-     --device "$DEVICE" --seed "$SEED")
+     --device "$DEVICE" --seed "$SEED" ${NUM_WORKERS:+--num_workers "$NUM_WORKERS"} \
+     $( [ "$ALLOW_LOW" = 1 ] && echo --allow-low-decode ))
 if [ "$DRY" = 1 ]; then echo "DRY-RUN: ${CMD[*]}"; else "${CMD[@]}"; fi
 echo "generate_candidates: DONE ($DATASET K=$K split=$SPLIT -> $OUTP)"

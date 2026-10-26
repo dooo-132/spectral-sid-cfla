@@ -3,14 +3,9 @@
 #
 #   bash scripts/smoke_test.sh
 #
-# Runs, in order:
-#   1. environment check                  (versions + path roots)
-#   2. byte-compile every python file     (syntax)
-#   3. unit tests                         (tests/run_tests.py)
-#   4. synthetic end-to-end demo          (examples/synthetic_demo.py)
-#
-# Everything runs on synthetic inputs; nothing is written into the repository
-# (the tests and the demo use throw-away temporary roots).
+# Runs: environment check -> in-memory byte-compile of every python file ->
+# import smoke test of the core packages.  (The unit-test suite and the
+# synthetic demo are intentionally not shipped in this release.)
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
@@ -24,12 +19,11 @@ echo " repo: $REPO"
 echo "=================================================================="
 
 echo
-echo "--- 1/4 environment ---"
+echo "--- 1/3 environment ---"
 bash scripts/check_environment.sh
 
 echo
-echo "--- 2/4 byte-compile ---"
-# compile in memory (writing .pyc into the tree would pollute a fresh checkout)
+echo "--- 2/3 byte-compile (in memory, nothing written) ---"
 "$PY" - <<'PY'
 import pathlib, sys
 bad = []
@@ -47,12 +41,22 @@ sys.exit(1 if bad else 0)
 PY
 
 echo
-echo "--- 3/4 unit tests (synthetic) ---"
-"$PY" tests/run_tests.py
-
-echo
-echo "--- 4/4 synthetic end-to-end demo ---"
-"$PY" examples/synthetic_demo.py
+echo "--- 3/3 import smoke test ---"
+"$PY" - <<'PY'
+import warnings, importlib
+warnings.filterwarnings('ignore')
+mods = ['src', 'src.sid', 'src.sid.generator', 'src.tiger', 'src.tiger.train',
+        'src.tiger.dump_beams', 'src.fusion.common', 'src.analysis.teacher_forced',
+        'src.utils.repo_paths', 'src.runner', 'src.cfla', 'src.cfla.cfla']
+ok = fail = 0
+for m in mods:
+    try:
+        importlib.import_module(m); ok += 1
+    except Exception as e:
+        print('FAIL', m, type(e).__name__, str(e)[:120]); fail += 1
+print(f"imports: {ok} ok, {fail} failed")
+raise SystemExit(1 if fail else 0)
+PY
 
 echo
 echo "=================================================================="

@@ -1,10 +1,7 @@
 {
   "artifact": "RQ5_RECIPE_FINAL.json",
-  "phase": "the corresponding stage -- canonical RQ-VAE5 recipe, frozen before training",
   "generated_from": [
-    "src/tokenization/legacy_rqvae/main.py",
-    "src/tokenization/legacy_rqvae/generate_code.py",
-    "src/tokenization/legacy_rqvae/append_collision_token.py",
+    "external RQ-VAE implementation (see README section 5.2)",
     "configs/canonical.yaml"
   ],
   "design": {
@@ -126,5 +123,6 @@
       "Toys_and_Games"
     ],
     "sports": "excluded"
-  }
+  },
+  "note": "canonical RQ-VAE5 recipe (hyper-parameters only). The RQ-VAE tokenizer implementation is not bundled in this release; build the tokenizer/SID array with an external RQ-VAE implementation (see README section 5.2) and use these exact hyper-parameters."
 }

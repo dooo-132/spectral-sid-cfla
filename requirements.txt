@@ -22,11 +22,8 @@ tqdm==4.67.3
 # Tables/figures produced by the analysis scripts.
 matplotlib==3.9.2
 
-# Optional, needed only for the RQ-OPQ tokenizer generator
-# (src/tokenization/paper/generate_rq2_opq3_sid.py imports faiss).
-# CPU build verified; a CUDA build of the same release also works.
-faiss-cpu==1.14.2
-
 # Optional, needed only for the item-embedding preparation step
-# (src/data_prep/make_item_embeddings.py).
+# (src/data_prep/make_item_embeddings.py).  The RQ-VAE / RQ-OPQ tokenizers are
+# NOT bundled: see README section 5 for the external repositories and their own
+# dependency requirements.
 sentence-transformers==5.5.1

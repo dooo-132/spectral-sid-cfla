@@ -2,73 +2,67 @@
 
 ## Canonical configuration
 
-Single source of truth: `configs/canonical.yaml` (canonical SID / model /
-training / inference constants) and `configs/canonical_full.yaml`.
-Nothing in this repository hard-codes an experiment setting: pass a config or a
-CLI flag, and record which one you used.
+Single source of truth for the spectral pipeline: `configs/canonical.yaml`
+(SID / model / training / inference constants) and `configs/experiments/*.yaml`
+(per-dataset, per-K). Nothing in the code hard-codes an experiment setting: pass a
+config or CLI flag and record which one you used. The CFLA pool is described by a
+separate pool config (`configs/cfla_pool.example.yaml`).
 
 ## Hard rules
 
-1. **Never modify an input artifact.** Beam dumps, checkpoints, SID arrays and
-   result CSVs are append-only: write new outputs under `CFLA_OUTPUT_ROOT`,
-   never into `CFLA_ARTIFACT_ROOT`.
-2. **Never select hyper-parameters on the test set.** Use the validation split,
-   or use a method that requires no selection.
-3. **Never compare against a metric computed by a different code path** without
-   saying so. The training-time evaluator and the item-level evaluator are
-   different estimators (see below); the paper reports the item-level one.
-4. **Never insert the ground-truth target into the candidate pool.** Candidate
-   pools come from beam generation only; the target is used afterwards, for
-   evaluation only.
+1. **Never modify an input artifact.** Inputs are read-only; write new outputs under
+   `CFLA_OUTPUT_ROOT`.
+2. **Never select hyper-parameters on the test set.** Use validation, or a method
+   that requires no selection. CFLA's calibration statistics are fitted on **all
+   validation candidates** and frozen before test scoring.
+3. **Never insert the ground-truth target into the candidate pool.** Candidate pools
+   come from beam generation only; the target is used only for metric computation
+   after scoring.
+4. **Never compare against a metric computed by a different code path** without
+   saying so. The training-time evaluator and the item-level evaluator are different
+   estimators; the paper reports the item-level one.
 
 ## Model selection metric
 
-`--eval_mode item` (default) selects checkpoints on **item-level NDCG@20**:
-decode generated SIDs to item ids, merge beams mapping to the same item by
-summed beam probability, rank items.
+`--eval_mode item` (default) selects checkpoints on item-level validation NDCG@20:
+decode generated SIDs to item ids, merge beams mapping to the same item by summed
+beam probability, rank items.
 
-`--eval_mode token` is the legacy token-prefix proxy. It scores substantially
-lower than the item-level metric and can select a *different* checkpoint. It is
-kept only for historical comparison; do not use it for new results.
+`--eval_mode token` is the legacy token-prefix proxy; it scores lower and can select
+a different checkpoint. It is kept for historical comparison only.
 
-## CFLA scoring protocol
+## CFLA protocol
 
-For a factorization pool `F = {F_1, ..., F_M}` (paper pool:
-M5 = Spectral-K2/K3/K4/K5 + RQ-VAE5):
+With a pool `F = {F_1, ..., F_M}`:
 
-1. generate `C_F(u)` by beam search for every `F` (beam size 30 in the paper);
+1. generate `C_F(u)` by beam search for every `F`;
 2. `C(u) = ∪_F C_F(u)` (generated candidates only — no target insertion);
-3. teacher-force the complete SID of every `i ∈ C(u)` under every `F` and sum
-   the per-position negative log-likelihoods → `NLL_F(u,i)`;
+3. teacher-force the complete SID of every `i ∈ C(u)` under every `F`; sum the
+   per-position negative log-likelihoods → `NLL_F(u,i)`;
 4. fit `μ_F, σ_F` on **all validation candidates** and freeze them;
 5. `z_F(u,i) = (NLL_F(u,i) − μ_F)/σ_F`;
-6. `S_CFLA(u,i) = logsumexp_F(−z_F(u,i))`; rank descending.
+6. `S_CFLA(u,i) = logsumexp_F(−z_F(u,i))`, rank descending.
 
-The aggregation has no trainable parameters. `μ_F/σ_F` are never fitted on test.
+Implemented in `src/cfla/cfla.py` and orchestrated by `src/cfla/run.py`
+(`scripts/run_cfla.sh`). The runner also computes two baselines on the same union:
+`uniform` (mean of per-factorization retrieval probabilities) and `minnll`
+(`−min_F z_F`, aggregation-function ablation).
 
-## Fusion (baseline)
+## Evaluation and statistics
 
-For the uniform-fusion baseline over the spectral pool:
+Item-level Recall@K / NDCG@K for K ∈ {5,10,20}; targets outside the union contribute
+0. Significance: paired **user-level** bootstrap with 5,000 resamples (95% CI,
+two-sided p-value, seed 20260912) — `src/cfla/cfla.py::paired_bootstrap`, reported
+for CFLA vs Uniform Fusion in `metrics.json`.
 
+## Reproducing a run
+
+```bash
+bash scripts/reproduce.sh --stage all --dataset Beauty --raw-dir /path/to/raw
 ```
-Score(u,i) = (1/|K|) * Σ_{K in {2,3,4,5}} P_K(i|u)
-```
 
-* Per model: row-wise softmax over that model's candidates.
-* Item-level probability = sum of probabilities of beams mapping to that item.
-* Default is **uniform** (equal weights), which requires no tuning.
-* Structure-aware and confidence-based weighting are negative results
-  (γ=0 optimal in 8/8 cells; no significant gain) and are **not** the method.
-
-## Statistics
-
-Paired **user-level** bootstrap, 5,000 resamples, 95% CI, two-sided p-value
-(seed 20260912 in `configs/canonical.yaml`). All comparisons are paired on the
-*same* users.
-
-## Reporting
-
-Every reported number is generated by a script from artifacts (no hand-typed
-results). The table/figure builders are `src/cfla/paper_results/*.py` for the
-paper-final pipeline; each
-records provenance of its inputs.
+This wraps: data preparation → SID construction (spectral + dimension split) →
+per-factorization T5 training → beam candidates → CFLA check. RQ-VAE / RQ-OPQ
+factorizations require externally built SID arrays (README §5.2–5.3). The full
+synthetic pipeline can be validated without any data via
+`bash scripts/smoke_pipeline.sh`.

@@ -137,6 +137,13 @@ def main():
     parser.add_argument("--max_len", type=int, default=20)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--seed", type=int, default=2025)
+    parser.add_argument("--allow-low-decode", action="store_true",
+                        help="EXPERTS ONLY / synthetic smoke: allow a candidate "
+                             "decode ratio below 0.90 instead of raising. A low ratio "
+                             "normally means the token layout (--codebook_size/--sid_len) "
+                             "does not match training.")
+    parser.add_argument("--num_workers", type=int, default=4,
+                        help="DataLoader workers (0 = main process only)")
 
     args = parser.parse_args()
 
@@ -171,6 +178,7 @@ def main():
         dataset,
         batch_size=args.infer_size,
         shuffle=False,
+        num_workers=args.num_workers,
     )
 
     all_target_item_ids = []
@@ -292,7 +300,10 @@ def main():
     print(f"Decode health: target_item_ids    valid ratio = {target_ratio:.4f}")
     print(f"codebook_size = {args.codebook_size}, sid_len = {args.sid_len}, "
           f"inferred vocab = {int(vocab_size)}")
-    if valid_ratio < 0.90:
+    if valid_ratio < 0.90 and args.allow_low_decode:
+        print("WARNING: candidate decode ratio {:.1%} < 90%; continuing because "
+              "--allow-low-decode was passed (synthetic/untrained checkpoint)".format(valid_ratio))
+    elif valid_ratio < 0.90:
         raise RuntimeError(
             "Only {:.1%} of candidates decoded to a valid item id. The token "
             "layout is almost certainly wrong: check --codebook_size "

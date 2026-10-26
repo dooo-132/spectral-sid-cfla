@@ -2,14 +2,14 @@
 # Stage 3 -- train a T5 recommender.
 #
 #   bash scripts/train.sh --model t5_single --dataset Beauty --k 5
-#   bash scripts/train.sh --model t5_5plus1 --dataset Beauty --arm rqvae5
+#   bash scripts/train.sh --model t5_single --dataset Beauty \
+#        --code-path /path/to/Beauty_t5_rqvae5.npy --sid-len 6   # external SID
 #
-# model=t5_single   one model per (dataset, K, affinity) SID array; this is the
-#                   single-model / per-granularity baseline trainer
-#                   (python3 -m src.tiger.train).
-# model=t5_5plus1   paper-pool 5+1 tokenizer models (RQ-VAE5 / RQ1-OPQ4 /
-#                   OPQ5), L=6, vocabulary inferred from the SID validation
-#                   file (src/training/train_t5_5plus1.py).
+# model=t5_single   one T5 model per SID array (python3 -m src.tiger.train).
+#                   --k/--affinity pick the canonical spectral SID array; use
+#                   --code-path (and optionally --sid-len) for any other SID
+#                   system, e.g. the RQ-VAE / RQ-OPQ arrays built with the
+#                   external repositories linked in README section 5.
 # Training needs a CUDA GPU; --dry-run is CPU-safe.
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,13 +21,15 @@ ART="${CFLA_ARTIFACT_ROOT:-$REPO/artifacts}"
 OUT="${CFLA_OUTPUT_ROOT:-$REPO/outputs}"
 
 usage() { cat <<'USAGE'
-Usage: bash scripts/train.sh --model {t5_single|t5_5plus1} --dataset NAME [options]
+Usage: bash scripts/train.sh --model t5_single --dataset NAME [options]
 
-  --model M          t5_single | t5_5plus1
+  --model M          t5_single
   --dataset NAME     dataset name
-  --k K              t5_single: spectral K, 2..5 (required)
-  --affinity A       t5_single: nonneg_pearson (canonical; default)
-  --arm ARM          t5_5plus1: rqvae5 | rq1_opq4 | opq5 (required)
+  --k K              spectral K, 2..5 (required unless --code-path is given)
+  --affinity A       nonneg_pearson (canonical; default)
+  --sid-len L        SID length; default K+1 for spectral, inferred otherwise
+  --code-path FILE   SID array to train on (default: canonical spectral array)
+  --num-workers N    DataLoader workers (default 4; use 0 on restricted hosts)
   --codebook C       token slot width (default 256)
   --device D         cuda (default) | cpu
   --mode M           t5_single: train | evaluation (default: train)
@@ -43,7 +45,7 @@ USAGE
 }
 MODEL=""; DATASET=""; K=""; AFFINITY="nonneg_pearson"; ARM=""; CODEBOOK=256
 DEVICE="cuda"; MODE="train"; SEED=2025; BATCH=256; EPOCHS=200; LR=1e-4
-BEAM=30; EVAL_MODE="item"; DRY=0; CODE_OVERRIDE=""
+BEAM=30; EVAL_MODE="item"; DRY=0; CODE_OVERRIDE=""; SID_LEN=""; NUM_WORKERS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --model) MODEL="${2:?}"; shift 2 ;;
@@ -61,6 +63,8 @@ while [ $# -gt 0 ]; do
     --beam-size) BEAM="${2:?}"; shift 2 ;;
     --eval-mode) EVAL_MODE="${2:?}"; shift 2 ;;
     --code-path) CODE_OVERRIDE="${2:?}"; shift 2 ;;
+    --sid-len) SID_LEN="${2:?}"; shift 2 ;;
+    --num-workers) NUM_WORKERS="${2:?}"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "error: unknown argument $1" >&2; usage >&2; exit 2 ;;
@@ -72,22 +76,22 @@ run() { if [ "$DRY" = 1 ]; then echo "DRY-RUN: $*"; else "$@"; fi; }
 
 case "$MODEL" in
   t5_single)
-    [ -n "$K" ] || { echo "error: --k is required for model=t5_single" >&2; exit 2; }
-    L=$((K + 1)); VOCAB=$((256 * L + 1))
+    if [ -n "$CODE_OVERRIDE" ] && [ -z "$K" ]; then
+      echo "error: pass --k (spectral) or both --code-path and --sid-len" >&2
+    fi
+    if [ -n "$SID_LEN" ]; then L="$SID_LEN"; else L=$(( ${K:-0} + 1 )); fi
+    [ "$L" -ge 1 ] || { echo "error: cannot determine SID length; pass --sid-len" >&2; exit 2; }
+    VOCAB=$((256 * L + 1))
     CODE="${CODE_OVERRIDE:-$ART/data/$DATASET/${DATASET}_t5_spectral_${AFFINITY}_v3_k${K}_sid${L}.npy}"
-    SAVE="$OUT/runs/t5_${DATASET}_${AFFINITY}_k${K}_sid${L}_seed${SEED}.pth"
-    LOG="$OUT/runs/t5_${DATASET}_${AFFINITY}_k${K}_sid${L}_seed${SEED}.log"
+    TAG="${DATASET}_k${K:-custom}_sid${L}"
+    SAVE="$OUT/runs/t5_${TAG}_seed${SEED}.pth"
+    LOG="$OUT/runs/t5_${TAG}_seed${SEED}.log"
     run "$PY" -m src.tiger.train --dataset_path "$ART/data/$DATASET" \
         --code_path "$CODE" --vocab_size "$VOCAB" --codebook_size "$CODEBOOK" \
         --max_len 20 --batch_size "$BATCH" --lr "$LR" --num_epochs "$EPOCHS" \
         --early_stop 10 --infer_size 96 --beam_size "$BEAM" --device "$DEVICE" \
         --seed "$SEED" --eval_mode "$EVAL_MODE" --mode "$MODE" \
-        --log_path "$LOG" --save_path "$SAVE"
-    ;;
-  t5_5plus1)
-    [ -n "$ARM" ] || { echo "error: --arm is required for model=t5_5plus1" >&2; exit 2; }
-    run "$PY" src/training/train_t5_5plus1.py --dataset "$DATASET" --arm "$ARM" \
-        --codebook "$CODEBOOK" $( [ "$DRY" = 1 ] && echo --dry-run )
+        --log_path "$LOG" --save_path "$SAVE" ${NUM_WORKERS:+--num_workers "$NUM_WORKERS"}
     ;;
   *) echo "error: unknown --model $MODEL" >&2; exit 2 ;;
 esac

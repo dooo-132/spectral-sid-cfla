@@ -58,7 +58,7 @@ target = canonicalize_item_ids(dump["target_item_ids"])
 ```
 
 `dumps produced from now on should record 1-based ids`; if you regenerate them,
-update this document and `tests/` accordingly.
+update this document accordingly.
 
 ## One known edge case
 

@@ -10,7 +10,7 @@ vectors across all `N` items.
 Extracted verbatim (numerically) from the audited generator
 `the frozen artifact root/rqvae/generate_spectral_sid_v3.py::build_dimension_affinity`.
 Bit-exact reproduction of the canonical Beauty SID array is verified by
-`tests/test_sid_generation.py` and documented in
+documented in
 `docs/SID_REPRODUCTION_REPORT.md`.
 
 INPUT   X : (N, d) float32 item embeddings

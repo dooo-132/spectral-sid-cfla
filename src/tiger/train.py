@@ -258,7 +258,9 @@ def evaluate_item_level(model, eval_loader, topk_list, beam_size, device,
 
             for k in topk_list:
                 hit = (ranks >= 1) & (ranks <= k)
-                nd = _np.where(hit, 1.0 / _np.log2(ranks + 1), 0.0)
+                nd = _np.zeros_like(ranks, dtype=float)
+                if hit.any():
+                    nd[hit] = 1.0 / _np.log2(ranks[hit] + 1)
                 recalls['Recall@' + str(k)].append(float(hit.mean()))
                 ndcgs['NDCG@' + str(k)].append(float(nd.mean()))
 
@@ -304,6 +306,7 @@ def set_seed(seed):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TIGER configuration")
     parser.add_argument('--batch_size', type=int, default=256, help='Batch size for training')
+    parser.add_argument('--num_workers', type=int, default=4, help='DataLoader worker processes (0 = main process only; use 0 on restricted/CPU-only hosts)')
     parser.add_argument('--infer_size', type=int, default=96, help='Inference size for generating recommendations')
     parser.add_argument('--num_epochs', type=int, default=200, help='Number of epochs for training')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate for the optimizer')
@@ -405,9 +408,10 @@ if __name__ == "__main__":
     print(f"SID length={sid_len}, codebook_size={config['codebook_size']}, "
           f"vocab_size={config['vocab_size']}")
 
-    train_dataloader = GenRecDataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True)
-    validation_dataloader = GenRecDataLoader(validation_dataset, batch_size=config['infer_size'], shuffle=False)
-    test_dataloader = GenRecDataLoader(test_dataset, batch_size=config['infer_size'], shuffle=False)
+    nw = int(config.get('num_workers', 4))
+    train_dataloader = GenRecDataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=nw)
+    validation_dataloader = GenRecDataLoader(validation_dataset, batch_size=config['infer_size'], shuffle=False, num_workers=nw)
+    test_dataloader = GenRecDataLoader(test_dataset, batch_size=config['infer_size'], shuffle=False, num_workers=nw)
     
     # print(f"Train dataset size: {len(train_dataset)}")
     # print(f"Validation dataset size: {len(validation_dataset)}")
@@ -426,6 +430,7 @@ if __name__ == "__main__":
     model.to(device)
     best_ndcg = 0.0
     early_stop_counter = 0
+    saved_any = False
     
     for epoch in range(config['num_epochs']):
         logging.info(f"Epoch {epoch + 1}/{config['num_epochs']}")
@@ -450,6 +455,7 @@ if __name__ == "__main__":
             logging.info(f"Test Dataset: {test_avg_ndcgs}")
             # Save the best model
             torch.save(model.state_dict(), config['save_path'])
+            saved_any = True
             logging.info(f"Best model saved to {config['save_path']}")
         else:
             early_stop_counter += 1
@@ -457,4 +463,12 @@ if __name__ == "__main__":
             if early_stop_counter >= config['early_stop']:
                 logging.info("Early stopping triggered.")
                 break
+
+    if not saved_any:
+        # Validation NDCG@20 stayed at 0 for every epoch (possible on tiny or
+        # synthetic data).  Still save the final model so that the pipeline can
+        # continue; the log records that this is not a validation-selected model.
+        torch.save(model.state_dict(), config['save_path'])
+        logging.warning(f"No epoch improved validation NDCG@20; saved the final "
+                        f"model to {config['save_path']} (not validation-selected)")
         

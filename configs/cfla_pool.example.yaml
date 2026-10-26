@@ -1,0 +1,34 @@
+# Example CFLA factorization pool config.
+#
+# Paths are expanded with ${VAR} from the environment:
+#   CFLA_ARTIFACT_ROOT  inputs  (data/<Dataset>/{valid,test}.parquet)
+#   CFLA_OUTPUT_ROOT    outputs (SID arrays, checkpoints, beam dumps)
+#
+# Build the inputs with the shipped stages:
+#   1) scripts/prepare_data.sh --dataset Beauty --stage all --raw-dir <raw> --model-dir <sentence-t5>
+#   2) scripts/build_sid.sh --tokenizer spectral --dataset Beauty --k 2   (repeat k=2..5)
+#      (RQ-VAE / RQ-OPQ SID arrays: use the external repositories linked in README §5)
+#   3) scripts/train.sh --model t5_single --dataset Beauty --k 2 --device cuda
+#   4) scripts/generate_candidates.sh --dataset Beauty --k 2 --split valid
+#      scripts/generate_candidates.sh --dataset Beauty --k 2 --split test
+dataset: Beauty
+dataset_dir: ${CFLA_ARTIFACT_ROOT}/data/Beauty
+codebook_size: 256
+max_len: 20
+output_dir: ${CFLA_OUTPUT_ROOT}/cfla
+
+factorizations:
+  - name: spectral_k2
+    sid: ${CFLA_OUTPUT_ROOT}/sids/Beauty/nonneg_pearson/k2/seed2025/sid.npy
+    ckpt: ${CFLA_OUTPUT_ROOT}/runs/t5_Beauty_nonneg_pearson_k2_sid3_seed2025.pth
+    beam_valid: ${CFLA_OUTPUT_ROOT}/beam_dumps/Beauty/valid_k2_sid3.npz
+    beam_test: ${CFLA_OUTPUT_ROOT}/beam_dumps/Beauty/test_k2_sid3.npz
+  - name: spectral_k3
+    sid: ${CFLA_OUTPUT_ROOT}/sids/Beauty/nonneg_pearson/k3/seed2025/sid.npy
+    ckpt: ${CFLA_OUTPUT_ROOT}/runs/t5_Beauty_nonneg_pearson_k3_sid4_seed2025.pth
+    beam_valid: ${CFLA_OUTPUT_ROOT}/beam_dumps/Beauty/valid_k3_sid4.npz
+    beam_test: ${CFLA_OUTPUT_ROOT}/beam_dumps/Beauty/test_k3_sid4.npz
+  # Add further factorizations the same way (spectral_k4, spectral_k5, dimension
+  # split, and externally-built RQ-VAE / RQ-OPQ SID arrays + their checkpoints
+  # and beam dumps).  All factorizations must share the same dataset, the same
+  # user order and the same candidate-generation split.
