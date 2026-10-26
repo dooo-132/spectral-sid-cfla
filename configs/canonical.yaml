@@ -1,0 +1,80 @@
+codebook_size: 256
+eval_mode: item
+granularities:
+- 2
+- 3
+- 4
+- 5
+sid_length:
+  2: 3
+  3: 4
+  4: 5
+  5: 6
+vocab_size_by_K:
+  2: 769
+  3: 1025
+  4: 1281
+  5: 1537
+affinity:
+  primary: nonneg_pearson_v3
+  ablation_only: abspearson_v3
+fusion:
+  primary: uniform
+  formula: Score(u,i) = (1/|K|) * sum_{K in {2,3,4,5}} P_K(i|u)
+  tuning_required: false
+model:
+  architecture: T5 encoder-decoder
+  num_encoder_layers: 4
+  num_decoder_layers: 4
+  d_model: 128
+  d_ff: 1024
+  num_heads: 6
+  d_kv: 64
+  dropout_rate: 0.1
+  feed_forward_proj: relu
+  pad_token_id: 0
+  eos_token_id: 0
+training:
+  batch_size: 256
+  lr: 0.0001
+  num_epochs: 200
+  early_stop_patience: 10
+  early_stop_monitor: validation NDCG@20
+  max_len: 20
+  seed: 2025
+  infer_size: 96
+  num_seeds_per_configuration: 1
+inference:
+  beam_size: 30
+datasets:
+- key: Beauty
+  display: Beauty
+  n_items: 12101
+  n_test_users: 22363
+- key: Cell_Phones_and_Accessories
+  display: Cell Phones
+  n_items: 10429
+  n_test_users: 27879
+- key: Health_and_Personal_Care
+  display: Health
+  n_items: 18534
+  n_test_users: 38609
+- key: Toys_and_Games
+  display: Toys
+  n_items: 11924
+  n_test_users: 19412
+metrics:
+- Recall@5
+- Recall@10
+- Recall@20
+- NDCG@5
+- NDCG@10
+- NDCG@20
+statistics:
+  test: paired_user_level_bootstrap
+  n_resamples: 5000
+  seed: 20260912
+  ci: 95
+  primary_comparison: uniform_multi_granularity_vs_best_single_K
+  secondary_comparison: dynamic_vs_uniform
+_provenance: canonical setting; see docs/EXPERIMENT_PROTOCOL.md

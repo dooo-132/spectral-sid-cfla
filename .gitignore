@@ -1,0 +1,92 @@
+# ---- secrets / credentials (never commit) ----------------------------------
+.env
+.env.*
+secrets/
+secrets.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+.netrc
+.git-credentials
+
+# ---- data / archive formats produced by runs ------------------------------
+*.csv
+*.tsv
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.onnx
+*.bin
+*.db
+*.sqlite
+*.faiss
+*.mmap
+*.ipynb
+
+# ---- data and model artifacts (never committed) ---------------------------
+data/
+artifacts/
+outputs/
+ckpt/
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.npy
+*.npz
+*.parquet
+*.arrow
+*.pkl
+*.pickle
+*.h5
+*.safetensors
+
+# ---- run products ---------------------------------------------------------
+runs/
+logs/
+*.log
+wandb/
+tensorboard/
+events.out.tfevents.*
+*.jsonl
+manifest.sha256
+PRE_RUN_ARTIFACT_MANIFEST.sha256
+POST_RUN_ARTIFACT_MANIFEST.sha256
+
+# ---- python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---- environments ---------------------------------------------------------
+.venv/
+venv/
+env/
+.MLSettings
+
+# ---- editors / OS ---------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- paper / submissions (shipped separately) -----------------------------
+/paper/
+*.pdf
+*.tex
+*.bib
+figures/*.png
+figures/*.pdf

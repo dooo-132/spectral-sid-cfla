@@ -1,0 +1,27 @@
+experiment:
+  name: health_and_personal_care_spectral_k4
+  dataset: Health_and_Personal_Care
+  seed: 2025
+paths:
+  artifact_root: null
+  output_root: null
+sid:
+  method: spectral
+  affinity: nonneg_pearson
+  k: 4
+  codebook_size: 256
+  pca_dim: 64
+  alignment_mode: canonical
+model:
+  batch_size: 256
+  learning_rate: 0.0001
+  max_epochs: 200
+  patience: 10
+  max_len: 20
+  infer_size: 96
+generation:
+  beam_size: 30
+evaluation:
+  mode: item
+fusion:
+  method: uniform

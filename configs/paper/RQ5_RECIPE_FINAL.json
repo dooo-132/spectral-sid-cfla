@@ -1,0 +1,130 @@
+{
+  "artifact": "RQ5_RECIPE_FINAL.json",
+  "phase": "the corresponding stage -- canonical RQ-VAE5 recipe, frozen before training",
+  "generated_from": [
+    "src/tokenization/legacy_rqvae/main.py",
+    "src/tokenization/legacy_rqvae/generate_code.py",
+    "src/tokenization/legacy_rqvae/append_collision_token.py",
+    "configs/canonical.yaml"
+  ],
+  "design": {
+    "semantic_positions": 5,
+    "disambiguation_positions": 1,
+    "full_sid_length": 6,
+    "num_layers": 5,
+    "codebook_size": 256,
+    "semantic_codebooks": [
+      256,
+      256,
+      256,
+      256,
+      256
+    ],
+    "vocab_size": 1537,
+    "vocab_derivation": "slot-wise: token = code + p*stride + 1, vocab = stride*L + 1 = 256*6 + 1; see docs/SID_FORMAT.md"
+  },
+  "sk_epsilons": {
+    "value": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.003
+    ],
+    "historical_value_at_depth_3": [
+      0.0,
+      0.0,
+      0.003
+    ],
+    "rule_adopted": "epsilon on the LAST level only",
+    "rationale": "This is the only rule that directly generalises the recovered historical pattern. History places the stochastic-quantisation epsilon on the final residual level ([0,0,0.003] for depth 3), not on level 3 as a fixed index. Option A carries that rule to depth 5 unchanged. Options B ([0,0,0,0.003,0.003]) and C (all zeros) have no historical basis and were rejected.",
+    "status": "ADOPTED -- recorded in the experiment decision log (not shipped) as the recommended option; no sweep performed",
+    "was_this_swept": false,
+    "was_this_chosen_on_test": false
+  },
+  "embedding_source": {
+    "file": "data/<dataset>/item_emb.parquet",
+    "loader": "rqvae/datasets.py::EmbDataset",
+    "note": "identical to the historical RQ-VAE runs; in_dim is read from the parquet"
+  },
+  "tokenizer_training": {
+    "entry_point": "rqvae/main.py",
+    "device": "cuda:0",
+    "epochs": 3000,
+    "batch_size": 1024,
+    "lr": 0.001,
+    "learner": "AdamW",
+    "lr_scheduler_type": "linear",
+    "warmup_epochs": 50,
+    "weight_decay": 0.0001,
+    "dropout_prob": 0.0,
+    "bn": false,
+    "loss_type": "mse",
+    "quant_loss_weight": 1.0,
+    "beta": 0.25,
+    "kmeans_init": true,
+    "kmeans_iters": 100,
+    "sk_iters": 50,
+    "eval_step": 50,
+    "num_workers": 4,
+    "save_limit": 5,
+    "num_emb_list": [
+      256,
+      256,
+      256,
+      256,
+      256
+    ],
+    "e_dim": 32,
+    "layers": [
+      512,
+      256,
+      128,
+      64
+    ],
+    "ckpt_dir": "outputs/final_hyperparam_efficiency/runs_5plus1/<dataset>/rqvae5/tokenizer",
+    "checkpoint_name_produced": "best_collision_model.pth"
+  },
+  "random_seed": {
+    "tokenizer_seed": 2024,
+    "tokenizer_seed_source": "hard-coded in rqvae/main.py (`seed = 2024`), applied to random, numpy, torch and torch.cuda",
+    "recommender_seed": 2025,
+    "recommender_seed_source": "configs/canonical.yaml :: training.seed",
+    "note": "The two stages use different seeds historically. Both are recorded as recovered facts and neither was changed."
+  },
+  "sid_generation": {
+    "entry_point": "rqvae/generate_code.py",
+    "mechanics": "loads best_collision_model.pth, decodes every item to its 5 residual codes, detects duplicate full-prefix groups (check_collision / get_collision_item) and appends one disambiguation index per item",
+    "output": "data/<dataset>/<dataset>_t5_rqvae5.npy",
+    "shape_expected": [
+      null,
+      6
+    ],
+    "item_row_alignment": "row i of the SID array is dataset item id i+1 (docs/ITEM_ID_CONVENTION.md); canonicalise on load",
+    "target_never_inserted": true
+  },
+  "collision_token": {
+    "entry_point": "rqvae/append_collision_token.py (or the equivalent in-block path inside generate_code.py)",
+    "construction": "group items by their full 5-token semantic prefix; within each group assign each item a distinct index 0..(group_size-1) as the 6th position",
+    "codebook_size_argument": 256,
+    "hard_failure_rule": "raises if the largest duplicate group exceeds codebook_size, because a single disambiguation token would then be insufficient",
+    "injectivity_requirement": "item -> full 6-token SID must be 100 % injective; verified in the corresponding stage"
+  },
+  "invariants": {
+    "recipe_identical_across_datasets": true,
+    "recipe_selected_on_test": false,
+    "recipe_modified_for_performance": false,
+    "fallback_or_seed_shopping": false
+  },
+  "applicability": {
+    "canonical_codebook": 256,
+    "codebook_sweep": "NOT part of this recipe file; the corresponding stage trains Beauty-only variants with only codebook_size changed, and derives vocab dynamically per the corresponding stage",
+    "datasets": [
+      "Beauty",
+      "Cell_Phones_and_Accessories",
+      "Health_and_Personal_Care",
+      "Toys_and_Games"
+    ],
+    "sports": "excluded"
+  }
+}

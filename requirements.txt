@@ -1,0 +1,32 @@
+# Python 3.12.3 (verified).
+#
+# Versions below are exactly the ones this release was checked against
+# (import + CPU-only synthetic test runs).  They are pinned because that is
+# what was verified, not because the code needs those exact releases; a
+# reasonable nearby version of each package should also work.
+#
+# torch: the verified environment used the CUDA 13.0 build (2.12.0+cu130).
+# Install the build matching your driver/CUDA from https://pytorch.org.
+# The CPU-only synthetic demo and the unit tests do not need a GPU.
+torch==2.12.0
+transformers==5.9.0
+
+numpy==2.4.6
+scipy==1.17.1
+scikit-learn==1.9.0
+pandas==3.0.3
+pyarrow==24.0.0
+PyYAML==6.0.2
+tqdm==4.67.3
+
+# Tables/figures produced by the analysis scripts.
+matplotlib==3.9.2
+
+# Optional, needed only for the RQ-OPQ tokenizer generator
+# (src/tokenization/paper/generate_rq2_opq3_sid.py imports faiss).
+# CPU build verified; a CUDA build of the same release also works.
+faiss-cpu==1.14.2
+
+# Optional, needed only for the item-embedding preparation step
+# (src/data_prep/make_item_embeddings.py).
+sentence-transformers==5.5.1
